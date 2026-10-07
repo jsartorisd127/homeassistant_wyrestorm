@@ -18,17 +18,17 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-DOMAIN = "roteltcp"
+DOMAIN = "wyrestormtcp"
 
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_PORT = 9590
-DEFAULT_NAME = "Rotel"
+DEFAULT_NAME = "WyreStorm"
 
 HEARTBEAT_INTERVAL_SECONDS = 10
 HEARTBEAT_TIMEOUT_SECONDS = 5
 
-SUPPORT_ROTEL = (
+SUPPORT_WYRESTORM = (
         MediaPlayerEntityFeature.VOLUME_SET
         | MediaPlayerEntityFeature.VOLUME_MUTE
         | MediaPlayerEntityFeature.TURN_ON
@@ -56,16 +56,16 @@ async def async_setup_platform(
         add_entities: AddEntitiesCallback,
         discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Set up the Rotel platform."""
-    rotel = RotelDevice(config, hass)
-    add_entities([rotel], True)
-    _LOGGER.debug("ROTEL: RotelDevice initialized")
-    asyncio.create_task(rotel.connect())
+    """Set up the WyreStorm platform."""
+    wyrestorm = WyreStormDevice(config, hass)
+    add_entities([wyrestorm], True)
+    _LOGGER.debug("WYRESTORM: WyreStormDevice initialized")
+    asyncio.create_task(wyrestorm.connect())
 
 
-class RotelDevice(MediaPlayerEntity):
+class WyreStormDevice(MediaPlayerEntity):
     _attr_icon = "mdi:speaker-multiple"
-    _attr_supported_features = SUPPORT_ROTEL
+    _attr_supported_features = SUPPORT_WYRESTORM
 
     def __init__(self, config, hass):
         self._attr_name = config[CONF_NAME]
@@ -86,7 +86,7 @@ class RotelDevice(MediaPlayerEntity):
         Let Home Assistant create and manage a TCP connection,
         hookup the transport protocol to our device and send an initial query to our device.
         """
-        _LOGGER.info("ROTEL: initializing connection")
+        _LOGGER.info("WYRESTORM: initializing connection")
         if self._transport:
             self._transport.close()
             self._transport = None
@@ -95,27 +95,27 @@ class RotelDevice(MediaPlayerEntity):
         while True:
             try:
                 transport, protocol = await self._hass.loop.create_connection(
-                    RotelProtocol,
+                    WyreStormProtocol,
                     self._host,
                     self._port
                 )
-                _LOGGER.debug("ROTEL: Connected to device")
+                _LOGGER.debug("WYRESTORM: Connected to device")
                 break
             except Exception as e:
                 _LOGGER.warning(
-                    "ROTEL: Connection failed (%s), retrying in 10s...", e
+                    "WYRESTORM: Connection failed (%s), retrying in 10s...", e
                 )
                 await asyncio.sleep(10)
 
         protocol.set_device(self)
         self._transport = transport
-        _LOGGER.info("ROTEL: Connection successfull.")
+        _LOGGER.info("WYRESTORM: Connection successfull.")
         self._init_heartbeat_task()
         await self.async_update_ha_state(True)
 
     def connection_lost(self):
         if self._transport is not None and self._transport.is_closing():
-            _LOGGER.debug("ROTEL: Ignoring connection_lost, connection is closing.")
+            _LOGGER.debug("WYRESTORM: Ignoring connection_lost, connection is closing.")
             pass
         asyncio.create_task(self.connect())
 
@@ -135,10 +135,10 @@ class RotelDevice(MediaPlayerEntity):
                 await asyncio.wait_for(self._pending_response, timeout=HEARTBEAT_TIMEOUT_SECONDS)
 
             except asyncio.TimeoutError:
-                _LOGGER.warning("ROTEL: No response from heartbeat, reconnecting...")
+                _LOGGER.warning("WYRESTORM: No response from heartbeat, reconnecting...")
                 await self.connect()
             except Exception as e:
-                _LOGGER.warning("ROTEL: Heartbeat failed: %s", e)
+                _LOGGER.warning("WYRESTORM: Heartbeat failed: %s", e)
                 await self.connect()
             finally:
                 await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
@@ -149,16 +149,16 @@ class RotelDevice(MediaPlayerEntity):
             if self._transport and not self._transport.is_closing():
                 try:
                     self._transport.write(message.encode())
-                    _LOGGER.debug('ROTEL: data sent: %r', message)
+                    _LOGGER.debug('WYRESTORM: data sent: %r', message)
                 except Exception as e:
-                    _LOGGER.warning("ROTEL: Send failed (%s)", e)
+                    _LOGGER.warning("WYRESTORM: Send failed (%s)", e)
 
     def send_request(self, message: str):
         """Public method for synchronous-style calls."""
         if self._hass:
             self._hass.loop.create_task(self._send_request(message))
         else:
-            _LOGGER.warning("ROTEL: Hass loop not ready, cannot send message")
+            _LOGGER.warning("WYRESTORM: Hass loop not ready, cannot send message")
 
     @property
     def available(self) -> bool:
@@ -198,7 +198,7 @@ class RotelDevice(MediaPlayerEntity):
         self.send_request('mute_%s!' % ('on' if mute else 'off'))
 
     def handle_incoming(self, key, value):
-        _LOGGER.debug(f'ROTEL: handle incoming: {key} => {value}')
+        _LOGGER.debug(f'WYRESTORM: handle incoming: {key} => {value}')
 
         if key == 'volume':
             self._attr_volume_level = int(value) / 100
@@ -224,7 +224,7 @@ class RotelDevice(MediaPlayerEntity):
             else:
                 self._attr_source = self._source_dict.get(value)
         elif key == 'freq':
-            _LOGGER.debug(f'ROTEL: got freq {value}')
+            _LOGGER.debug(f'WYRESTORM: got freq {value}')
 
         # Resolve heartbeat future if waiting
         if self._pending_response and not self._pending_response.done():
@@ -234,7 +234,7 @@ class RotelDevice(MediaPlayerEntity):
         self.schedule_update_ha_state()
 
 
-class RotelProtocol(asyncio.Protocol):
+class WyreStormProtocol(asyncio.Protocol):
     def __init__(self):
         self._device = None
         self._msg_buffer = ''
@@ -243,12 +243,12 @@ class RotelProtocol(asyncio.Protocol):
         self._device = device
 
     def connection_made(self, transport):
-        _LOGGER.debug('ROTEL: Transport initialized')
+        _LOGGER.debug('WYRESTORM: Transport initialized')
 
     def data_received(self, data):
         try:
             self._msg_buffer += data.decode()
-            _LOGGER.debug('ROTEL: Data received %r', data.decode())
+            _LOGGER.debug('WYRESTORM: Data received %r', data.decode())
 
             commands = re.split('[$!]', self._msg_buffer)
 
@@ -265,8 +265,8 @@ class RotelProtocol(asyncio.Protocol):
                     key, value = cmd.split('=')
                     self._device.handle_incoming(key, value)
         except Exception:
-            _LOGGER.warning('ROTEL: Data received but not ready %r', data.decode())
+            _LOGGER.warning('WYRESTORM: Data received but not ready %r', data.decode())
 
     def connection_lost(self, exc):
-        _LOGGER.warning('ROTEL: Connection lost !')
+        _LOGGER.warning('WYRESTORM: Connection lost !')
         self._device.connection_lost()
