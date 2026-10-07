@@ -1,9 +1,8 @@
 {
-  "domain": "roteltcp",
-  "name": "RotelTCP",
+  "domain": "wyrestormtcp",
+  "name": "WyreStormTCP",
   "codeowners": [
-    "@elric91",
-    "@matthijs-oosterhoff"
+    "@jsartorisd127"
   ],
   "documentation": "",
   "iot_class": "local_polling",
