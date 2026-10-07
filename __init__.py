@@ -1,1 +1,1 @@
-"""The roteltcp component."""
+"""The wyrestormtcp component."""
